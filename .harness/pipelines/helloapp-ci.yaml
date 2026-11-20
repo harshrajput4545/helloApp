@@ -1,20 +1,14 @@
-
 pipeline:
   name: HelloApp CI CD
   identifier: HelloApp_CI_CD
   projectIdentifier: default
   orgIdentifier: default
-
   properties:
     ci:
       codebase:
         connectorRef: connector_Github_03e3
-        repoName: helloApp
-        build:
-          type: branch
-          spec:
-            branch: main
-
+        repoName: helloApp   # apni asli GitHub repo ka naam daalo
+        build: <+input>
   stages:
     - stage:
         name: Build Push and Deploy
@@ -22,12 +16,12 @@ pipeline:
         type: CI
         spec:
           cloneCodebase: true
-
-          infrastructure:
+          platform:
+            os: Linux
+            arch: Amd64
+          runtime:
             type: Cloud
-            spec:
-              os: Linux
-
+            spec: {}
           execution:
             steps:
               - step:
@@ -37,11 +31,11 @@ pipeline:
                   spec:
                     shell: Bash
                     command: |
-                      echo "$DOCKERHUB_TOKEN" | docker login \
-                        -u "$DOCKERHUB_USERNAME" --password-stdin
-                  envVariables:
-                    DOCKERHUB_USERNAME: <+secrets.getValue("dockerhub_username")>
-                    DOCKERHUB_TOKEN: <+secrets.getValue("dockerhub_token")>
+                      set -e
+                      echo "$DOCKERHUB_TOKEN" | docker login -u "$DOCKERHUB_USERNAME" --password-stdin
+                    envVariables:
+                      DOCKERHUB_USERNAME: <+secrets.getValue("dockerhub_username")>
+                      DOCKERHUB_TOKEN: <+secrets.getValue("dockerhub_token")>
 
               - step:
                   type: Run
@@ -50,11 +44,10 @@ pipeline:
                   spec:
                     shell: Bash
                     command: |
+                      set -e
                       IMAGE="harshrajput29/hello-world-spring"
-
                       docker build -t "$IMAGE:<+pipeline.sequenceId>" .
                       docker push "$IMAGE:<+pipeline.sequenceId>"
-
                       docker tag "$IMAGE:<+pipeline.sequenceId>" "$IMAGE:latest"
                       docker push "$IMAGE:latest"
 
@@ -66,41 +59,23 @@ pipeline:
                     shell: Bash
                     command: |
                       set -e
-
-                      mkdir -p ~/.ssh
-                      chmod 700 ~/.ssh
-
+                      mkdir -p ~/.ssh && chmod 700 ~/.ssh
                       printf '%s\n' "$EC2_SSH_KEY" > ~/.ssh/ec2.pem
                       chmod 600 ~/.ssh/ec2.pem
-
                       ssh-keyscan -H "$EC2_HOST" >> ~/.ssh/known_hosts
 
-                      ssh -i ~/.ssh/ec2.pem \
-                        -o StrictHostKeyChecking=yes \
-                        "$EC2_USER@$EC2_HOST" << 'REMOTE'
-
+                      ssh -i ~/.ssh/ec2.pem -o StrictHostKeyChecking=yes "$EC2_USER@$EC2_HOST" << 'REMOTE'
                       set -e
-
                       docker pull harshrajput29/hello-world-spring:latest
-
                       docker stop hello-container || true
                       docker rm hello-container || true
-
-                      docker run -d \
-                        --restart unless-stopped \
-                        --name hello-container \
-                        -p 8081:8081 \
-                        harshrajput29/hello-world-spring:latest
-
+                      docker run -d --restart unless-stopped --name hello-container -p 8081:8081 harshrajput29/hello-world-spring:latest
                       docker image prune -f
-
                       REMOTE
 
                       rm -f ~/.ssh/ec2.pem
-
                       echo "Deployment completed!"
-
-                  envVariables:
-                    EC2_HOST: "13.232.120.185"
-                    EC2_USER: ubuntu
-                    EC2_SSH_KEY: <+secrets.getValue("ec2_ssh_key")>
+                    envVariables:
+                      EC2_HOST: <+secrets.getValue("ec2_host")>
+                      EC2_USER: ubuntu
+                      EC2_SSH_KEY: <+secrets.getValue("ec2_ssh_key")>
