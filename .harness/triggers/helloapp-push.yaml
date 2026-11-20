@@ -1,0 +1,24 @@
+
+trigger:
+  name: HelloApp GitHub Push
+  identifier: HelloApp_GitHub_Push
+  enabled: true
+  description: "Automatically run CI/CD when code is pushed to main"
+  tags: {}
+
+  orgIdentifier: default
+  projectIdentifier: default
+  pipelineIdentifier: HelloApp_CI_CD
+
+  source:
+    type: Webhook
+    spec:
+      type: Github
+      spec:
+        type: Push
+        spec:
+          connectorRef: connector_Github_03e3
+          autoAbortPreviousExecutions: false
+          repoName: helloApp
+
+  pipelineBranchName: main
